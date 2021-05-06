@@ -1,3 +1,7 @@
+# This Fork
+
+This fork was created to use PDR in shortest-trace-first mode.
+
 # ivy
 
 IVy is a research tool intended to allow interactive development of
