@@ -22,6 +22,8 @@ import itertools
 import sys
 import os
 
+import time
+
 logfile = None
 
 def get_truth(digits,idx,syms):
@@ -847,7 +849,7 @@ class Qelim(object):
             consts = [self.get_consts(x.sort,sort_constants) for x in expr.variables]
             values = itertools.product(*consts)
             maps = [dict(zip(expr.variables,v)) for v in values]
-            insts = [self.qe(il.substitute(expr.body,m),sort_constants) for m in maps]
+            insts = [normalize(il.substitute(expr.body,m)) for m in maps]
 #            for i in insts:
 #                print '    {}'.format(i)
             for inst in insts:
@@ -1111,9 +1113,8 @@ def to_aiger(mod,ext_act):
     
     # compute the transition relation
 
-    stvars,trans,error = tr.add_post_axioms(action.update(mod,None),mod.background_theory())
-    trans = ilu.and_clauses(trans,ilu.Clauses(defs=mod.background_theory().defs))
-    #    iu.dbg('trans')
+    stvars,trans,error = action.update(mod,None)
+#    iu.dbg('trans')
     
 
 #    print 'action : {}'.format(action)
@@ -1196,8 +1197,6 @@ def to_aiger(mod,ext_act):
     ax_def = il.Definition(ax_var,ax_conj)
     invariant = il.Implies(ax_var,invariant)
     trans = ilu.Clauses(trans.fmlas+[ax_var],trans.defs+[ax_def])
-
-#    iu.dbg('trans')
 
     # step 4b: handle the finite-domain functions specially
 
@@ -1592,7 +1591,9 @@ class ABCModelChecker(ModelChecker):
     def cmd(self,aigfilename,outfilename):
         abc_path = os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)),'bin'),'abc')
         print "abc_path: {}".format(abc_path)
-        return [abc_path,'-c','read_aiger {}; pdr; write_aiger_cex  {}'.format(aigfilename,outfilename)]
+        # return [abc_path,'-c','read_aiger {}; pdr; write_aiger_cex  {}'.format(aigfilename,outfilename)]
+        pdr_log_name = aigfilename.replace(".aig","_pdr.log")
+        return [abc_path,'-c','read_aiger {}; pdr -qt -L {}; write_aiger_cex  {}'.format(aigfilename,pdr_log_name,outfilename)]
     def scrape(self,alltext):
         return 'Property proved' in alltext
 
@@ -1603,9 +1604,16 @@ def check_isolate():
     print 80*'*'
     print
 
+    print "This version has been modified by Landon Taylor. landon.taylor@aggiemail.usu.edu"
+    print "The ABCModelChecker function is using 'pdr -qt -L pdr_log.txt'. For more info, \n\n"
+    print "install abc, and on the command line use 'abc' > 'pdr --help'"
+
+    rand_id = str(int(time.time()))
+
     global logfile,logfile_name
     if logfile is None:
-        logfile_name = 'ivy_mc.log'
+        # logfile_name = 'ivy_mc.log'
+        logfile_name = 'logfiles/ivy_mc_' + rand_id + '.log'
         logfile = open(logfile_name,'w')
 
     mod = im.module
@@ -1618,13 +1626,24 @@ def check_isolate():
     # convert to aiger
 
     aiger,decoder,annot,cnsts,action,stvarset = to_aiger(mod,ext_act)
-#    print aiger
+    # logfile.write(str(80*"="))
+    # logfile.write("\nAIGER:\n")
+    # logfile.write(str(aiger))
+    # logfile.write("\n" + str(80*"="))
+    # logfile.write("\n\n")
+
+#     # output aiger to temp file
+
+#     with tempfile.NamedTemporaryFile(suffix='.aag',delete=False) as f:
+#         name = f.name
+# #        print 'file name: {}'.format(name)
+#         f.write(str(aiger))
 
     # output aiger to temp file
 
-    with tempfile.NamedTemporaryFile(suffix='.aag',delete=False) as f:
+    with open("aigerfiles/" + rand_id + ".aag", 'w') as f:
         name = f.name
-#        print 'file name: {}'.format(name)
+        print 'file name: {}'.format(name)
         f.write(str(aiger))
     
     # convert aag to aig format
@@ -1644,7 +1663,7 @@ def check_isolate():
     outfilename = name.replace('.aag','.out')
     mc = ABCModelChecker() # TODO: make a command-line option
     cmd = mc.cmd(aigfilename,outfilename)
-#    print cmd
+    print "using cmd " + str(cmd)
     try:
         p = subprocess.Popen(cmd,stdout=subprocess.PIPE)
     except:
