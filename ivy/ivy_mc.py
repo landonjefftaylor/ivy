@@ -1613,6 +1613,8 @@ def check_isolate():
     global logfile,logfile_name
     if logfile is None:
         # logfile_name = 'ivy_mc.log'
+        if not os.path.exists('logfiles'):
+            os.makedirs('logfiles')
         logfile_name = 'logfiles/ivy_mc_' + rand_id + '.log'
         logfile = open(logfile_name,'w')
 
@@ -1640,7 +1642,8 @@ def check_isolate():
 #         f.write(str(aiger))
 
     # output aiger to temp file
-
+    if not os.path.exists('aigerfiles'):
+        os.makedirs('aigerfiles')
     with open("aigerfiles/" + rand_id + ".aag", 'w') as f:
         name = f.name
         print 'file name: {}'.format(name)
