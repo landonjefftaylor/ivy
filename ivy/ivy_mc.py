@@ -427,7 +427,8 @@ class Encoder(object):
         res = [self.sub.false() for _ in x]
         for i in range(0,len(x)):
             res = res[1:] + [self.sub.false()]
-            res = self.encode_ite(sort,x[i],self.encode_plus(sort,res,y),res)
+            # res = self.encode_ite(sort,x[i],self.encode_plus(sort,res,y),res) #the original problem
+            res = self.sub.ite(sort,x[i],self.encode_plus(sort,res,y),res) #the original problem
         return res
 
     def encode_lt(self,sort,x,y,cy=None):
@@ -445,8 +446,8 @@ class Encoder(object):
         res = []
         for i in range(0,len(x)):
             thing = thing[1:] + [x[i]]
-            le = encode_le(y,thing)
-            thing = self.encode_ite(sort,ls,self.encode_minus(sort,thing,y),thing)
+            le = encode_le(y,thing) #problem?
+            thing = self.encode_ite(sort,ls,self.encode_minus(sort,thing,y),thing) #problem
             res.append(le)
         return res
 
@@ -1593,7 +1594,8 @@ class ABCModelChecker(ModelChecker):
         print "abc_path: {}".format(abc_path)
         # return [abc_path,'-c','read_aiger {}; pdr; write_aiger_cex  {}'.format(aigfilename,outfilename)]
         pdr_log_name = aigfilename.replace(".aig","_pdr.log")
-        return [abc_path,'-c','read_aiger {}; pdr -qt -L {}; write_aiger_cex  {}'.format(aigfilename,pdr_log_name,outfilename)]
+        # return [abc_path,'-c','read_aiger {}; pdr -qvwt -L {}; write_aiger_cex  {}'.format(aigfilename,pdr_log_name,outfilename)] #more verbose
+        return [abc_path,'-c','read_aiger {}; pdr -qt -L {}; write_aiger_cex  {}'.format(aigfilename,pdr_log_name,outfilename)] #regular
     def scrape(self,alltext):
         return 'Property proved' in alltext
 
@@ -1604,9 +1606,13 @@ def check_isolate():
     print 80*'*'
     print
 
-    print "This version has been modified by Landon Taylor. landon.taylor@aggiemail.usu.edu"
-    print "The ABCModelChecker function is using 'pdr -qt -L pdr_log.txt'. For more info, \n\n"
+    print "This version has been modified by Landon Taylor. landon.jeffrey.taylor@usu.edu"
+    print "The ABCModelChecker function is using 'pdr -qt -L pdr_log.txt'. For more info,"
     print "install abc, and on the command line use 'abc' > 'pdr --help'"
+
+    print
+    print 80*'*'
+    print
 
     rand_id = str(int(time.time()))
 
