@@ -1668,7 +1668,7 @@ class ABCModelChecker(ModelChecker):
         abc_path = os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)),'bin'),'abc')
         if verbose:
             print "abc_path: {}".format(abc_path)
-        return [abc_path,'-c','read_aiger {}; pdr -qt {}; write_aiger_cex  {}'.format(aigfilename,outfilename)]
+        return [abc_path,'-c','read_aiger {}; pdr -qt; write_aiger_cex  {}'.format(aigfilename,outfilename)]
     def scrape(self,alltext):
         return 'Property proved' in alltext
 
