@@ -87,12 +87,13 @@ static void cleanup() {
     def emit_templates(self):
        add_impl(
 """
+#ifdef Z3PP_H_
+
 hash_space::hash_map<BASECLASS,int> CLASSNAME::x_to_bv_hash;
 hash_space::hash_map<int,BASECLASS> CLASSNAME::bv_to_x_hash;
 std::vector<BASECLASS> CLASSNAME::nonces;
 int CLASSNAME::next_bv = 0;
 
-#ifdef Z3PP_H_
 template <>
 void __from_solver<CLASSNAME>( gen &g, const  z3::expr &v, CLASSNAME &res) {
     res = CLASSNAME::bv_to_x(g.eval(v));
@@ -103,7 +104,7 @@ z3::expr __to_solver<CLASSNAME>( gen &g, const  z3::expr &v, CLASSNAME &val) {
     return v == g.int_to_z3(v.get_sort(),CLASSNAME::x_to_bv(val));
 }
 template <>
-void __randomize<CLASSNAME>( gen &g, const  z3::expr &apply_expr) {
+void __randomize<CLASSNAME>( gen &g, const  z3::expr &apply_expr, const std::string &sort_name) {
     z3::sort range = apply_expr.get_sort();
     CLASSNAME value;
     if (CLASSNAME::bv_to_x_hash.size() == (1<<BITS)) {
@@ -159,9 +160,11 @@ void __deser<CLASSNAME>(ivy_deser &inp, CLASSNAME &res) {
     inp.get(tmp);
     res = tmp;
 }
-//BASECLASS CLASSNAME::random_x(){
-//    return __random_string<CLASSNAME>();
-//}
+#ifdef Z3PP_H_
+BASECLASS CLASSNAME::random_x(){
+    return __random_string<CLASSNAME>();
+}
+#endif
 """.replace('BITS',str(self.bits)).replace('CLASSNAME',self.short_name()).replace('BASECLASS',self.baseclass))
 
     def card(self):
@@ -468,7 +471,7 @@ z3::expr __to_solver<CLASSNAME>( gen &g, const  z3::expr &v, CLASSNAME &val) {
     return conj;
 }
 template <>
-void __randomize<CLASSNAME>( gen &g, const  z3::expr &apply_expr) {
+void __randomize<CLASSNAME>( gen &g, const  z3::expr &apply_expr, const std::string &sort_name) {
     std::ostringstream os;
     os << "__SORTNAME__tmp" << CLASSNAME::temp_counter++;
     std::string temp = os.str();
@@ -484,7 +487,7 @@ void __randomize<CLASSNAME>( gen &g, const  z3::expr &apply_expr) {
            add_impl('        z3::expr X = g.ctx.constant(temp.c_str(),g.sort("{}"));\n'.format(sort.name))
            add_impl('        z3::expr pred = pto(apply_expr,X);\n')
            add_impl('        g.add_alit(pred);\n')
-           add_impl('        __randomize<{}>(g,X);\n'.format(ctype))
+           add_impl('        __randomize<{}>(g,X,"{}");\n'.format(ctype,sort.name))
            add_impl('    }\n')
        add_impl(
 """

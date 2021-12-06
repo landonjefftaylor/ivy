@@ -67,7 +67,7 @@ import ivy_utils as iu
 import logic as lg
 import logic_util as lu
 from logic import And,Or,Not,Globally,Eventually,Implies,Iff,Ite,ForAll,Exists,Lambda,NamedBinder
-from type_inference import concretize_sorts, concretize_terms
+from type_inference import concretize_sorts, concretize_terms, SortVar
 from collections import defaultdict
 from itertools import chain
 import ivy_smtlib
@@ -158,6 +158,7 @@ Symbol.clone = lambda self,args : self
 Symbol.resort = lambda self,sort : Symbol(self.name,sort)
 
 BooleanSort = lg.BooleanSort
+BooleanSort.is_finite = lambda self: True
 
 class AST(object):
     """
@@ -210,7 +211,9 @@ class Some(AST):
         return [self.args[0]]
     def clone_binder(self,vs,body):
         return Some(*(vs+self.args[1:]))
-
+    def sort(self):
+        self.args[0].sort
+    
 
 class Definition(AST):
     """
@@ -756,13 +759,17 @@ ConstantSort.rep = property(lambda self: self.name)
 UninterpretedSort = ConstantSort
 UninterpretedSort.is_relational = lambda self: False
 UninterpretedSort.rename = lambda self,rn: UninterpretedSort(rn(self.name))
+UninterpretedSort.is_finite = lambda self: False
 
 EnumeratedSort = lg.EnumeratedSort
-
 EnumeratedSort.defines = lambda self: self.extension
 EnumeratedSort.is_relational = lambda self: False
 EnumeratedSort.dom = property(lambda self: [])
 EnumeratedSort.rng = property(lambda self: self)
+EnumeratedSort.is_finite = lambda self: True
+
+RangeSort = lg.RangeSort
+RangeSort.is_finite = lambda self: True
 
 # class EnumeratedSort(object):
 #     def __init__(self,name,extension):
@@ -794,14 +801,19 @@ FunctionSort.rng = FunctionSort.range
 FunctionSort.dom = FunctionSort.domain
 FunctionSort.defines = lambda self: []
 FunctionSort.is_relational = lambda self: self.rng == lg.Boolean
+FunctionSort.is_finite = lambda self: False
 
 lg.BooleanSort.is_relational = lambda self: True
 lg.BooleanSort.rng = property(lambda self: self)
 lg.BooleanSort.dom = property(lambda self: [])
+FunctionSort.is_finite = lambda self: True
 
 
 def is_enumerated_sort(s):
     return isinstance(s,EnumeratedSort)
+
+def is_range_sort(s):
+    return isinstance(s,RangeSort)
 
 def is_boolean_sort(s):
     return s == lg.Boolean
@@ -1032,7 +1044,16 @@ polymorphic_symbols_list = [
     ('l2s_saved', [lg.Boolean]),
     ('l2s_d', [alpha, lg.Boolean]),
     ('l2s_a', [alpha, lg.Boolean]),
+    ('cast',[alpha,beta])
 ]
+
+uninterpreted_polymorphic_symbols = set([
+'l2s_waiting',
+'l2s_frozen',
+'l2s_saved',
+'l2s_d',
+'l2s_a',
+])    
 
 # Tricky: since the bfe operator is parameterized, we add instances of it to
 # the polymorphic_symbols table on demand.
@@ -1258,7 +1279,7 @@ def nary_ugly(op,args,myprec,prec):
     return ('(' + res + ')') if len(args) > 1 and myprec <= prec else res
 
 lg.Var.ugly = (lambda self,prec: (self.name+':'+self.sort.name)
-                  if show_variable_sorts and not isinstance(self.sort,lg.TopSort) else self.name)
+                  if show_variable_sorts and not isinstance(self.sort,(lg.TopSort,SortVar)) else self.name)
 lg.Const.ugly = (lambda self,prec: (self.name+':'+self.sort.name)
                     if show_numeral_sorts and self.is_numeral() and not isinstance(self.sort,lg.TopSort)
                  else self.name)
@@ -1431,6 +1452,7 @@ def is_interpreted_sort(s):
     return (isinstance(s,UninterpretedSort) or isinstance(s,EnumeratedSort)) and s.name in sig.interp
 
 def sort_interp(s):
+    foo = canonize_sort(s)
     return sig.interp.get(canonize_sort(s).name,None)
 
 def is_numeral(term):
@@ -1439,7 +1461,7 @@ def is_numeral(term):
 def is_interpreted_symbol(s):
 #    if symbol_is_polymorphic(s) and len(s.sort.dom) == 0:
 #        print s
-    return is_numeral(s) and is_interpreted_sort(s.sort) or symbol_is_polymorphic(s) and len(s.sort.dom) > 0 and is_interpreted_sort(s.sort.dom[0])
+    return is_numeral(s) and is_interpreted_sort(s.sort) or symbol_is_polymorphic(s) and len(s.sort.dom) > 0 and is_interpreted_sort(s.sort.dom[0]) and s.name not in uninterpreted_polymorphic_symbols
 
 def is_deterministic_fmla(f):
     if isinstance(f,Some) and len(f.args) < 4:
@@ -1578,8 +1600,8 @@ def rename_vars_no_clash(fmlas1,fmlas2):
 
 class VariableUniqifier(object):
     """ An object that alpha-converts formulas so that all variables are unique. """
-    def __init__(self):
-        self.rn = iu.UniqueRenamer()
+    def __init__(self,used=[]):
+        self.rn = iu.UniqueRenamer(used=used)
         self.invmap = dict()
     def __call__(self,fmla):
         vmap = dict()

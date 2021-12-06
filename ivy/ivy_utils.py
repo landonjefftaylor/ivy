@@ -245,6 +245,12 @@ class WorkingDir(object):
 def Location(filename=None,line=None):
     return LocationTuple([filename,line])
 
+def nowhere():
+    return Location("nowhere",0)
+
+def is_nowhere(lineno):
+    return lineno.filename == "nowhere"
+
 class LocationTuple(tuple):
     @property
     def filename(self):
@@ -252,7 +258,12 @@ class LocationTuple(tuple):
     @property
     def line(self):
         return self[1]
+    @property
+    def reference(self):
+        return self[2] if len(self) > 2 else None
     def __str__(self):
+        if self.reference:
+            return str(self.reference)
         if platform.system() == 'Windows':
             res =  (((str(self.filename)) if self.filename else '')
                     + ('(' + str(self.line) + ')') if self.line else '')
@@ -282,7 +293,14 @@ class IvyError(Exception):
             print str(self)
             assert False
     def __str__(self):
-        return str(self.lineno) + 'error: ' + self.msg
+        def recur(lineno):
+            if isinstance(lineno,LocationTuple) and lineno.reference:
+                res = recur(lineno.reference)
+                ref = LocationTuple([lineno.filename,lineno.line])
+                return res + '\n' + str(ref) + 'error: instantiated here'
+            else:
+                return str(lineno) + 'error: ' + self.msg
+        return recur(self.lineno)
     def __repr__(self):
         return str(self)
 
@@ -544,14 +562,17 @@ ivy_compose_character = '.'
 ivy_have_polymorphism = True
 ivy_use_polymorphic_macros = False
 ivy_forbid_ghost_init = False
+symbol_chars_parser = re.compile(r'[^\[\]\.]*')
 
 def set_string_version(version):
     global ivy_language_version
     global ivy_compose_character
     global ivy_have_polymorphism
     global ivy_use_polymorphic_macros
+    global symbol_chars_parser
     ivy_language_version = version
     ivy_compose_character = ':' if get_numeric_version() <= [1,1] else '.'
+    symbol_chars_parser = re.compile(r'[^\[\]' + ivy_compose_character + r']*')
     ivy_have_polymorphism = not get_numeric_version() <= [1,2]
     ivy_use_polymorphic_macros = not get_numeric_version() <= [1,5]
     ivy_forbid_ghost_init = not get_numeric_version() <= [1,6]
@@ -587,9 +608,40 @@ def compose_names(*names):
         return ivy_compose_character.join(names[1:])
     return ivy_compose_character.join(names)
 
-def split_name(name):
-    return name.split(ivy_compose_character)
+    
+def skip_symbol(name,pos):
+    match = symbol_chars_parser.match(name,pos)
+    assert match
+    return match.end()
 
+def skip_subscript(name,pos):
+    pos = skip_symbol(name,pos)
+    while pos < len(name) and name[pos] != ']':
+        if name[pos] == ivy_compose_character:
+            pos = skip_symbol(name,pos+1)
+        elif name[pos] == '[':
+            pos = skip_subscript(name,pos+1)
+            pos = pos + 1
+    return pos
+
+
+def split_name(name):
+    res = []
+    old = 0
+    pos = skip_symbol(name,old)
+    while pos < len(name):
+        if name[pos] == ivy_compose_character:
+            res.append(name[old:pos])
+            old = pos + 1
+            pos = skip_symbol(name,old)
+        elif name[pos] == '[':
+            pos = skip_subscript(name,pos+1)
+            pos = pos + 1
+        else:
+            assert False,(name,pos)
+    res.append(name[old:pos])
+    return res
+            
 def base_name(name):
     return split_name(name)[0]
 
@@ -652,6 +704,7 @@ polymorphic_symbols = set(
      'bvand',
      'bvor',
      'bvnot',
+     'cast',
     ]
 )
 

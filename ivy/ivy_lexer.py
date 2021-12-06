@@ -23,8 +23,7 @@ tokens = (
    'RCB',
    'ARROW',
    'IFF',
-   'SYMBOL',
-   'LABEL',
+   'PRESYMBOL',
    'VARIABLE',
    'COLON',
    'LE',
@@ -38,6 +37,8 @@ tokens = (
    'PTO',
    'DOLLAR',
    'CARET',
+    'LB',
+    'RB',
 )
 
 reserved = all_reserved = {
@@ -53,7 +54,8 @@ reserved = all_reserved = {
    'concept' : 'CONCEPT',
    'init' : 'INIT',
    'action' : 'ACTION',
-   'method' : 'ACTION',
+   'method' : 'METHOD',
+   'field' : 'FIELD',
    'state' : 'STATE',
    'assume' : 'ASSUME',
    'assert' : 'ASSERT',
@@ -72,8 +74,9 @@ reserved = all_reserved = {
    'false' : 'FALSE',
    'fresh' : 'FRESH',
    'module' : 'MODULE',
+   'template' : 'MODULE',
    'object' : 'OBJECT',
-   'class' : 'MODULE',
+   'class' : 'CLASS',
    'type' : 'TYPE',
    'if' : 'IF',
    'else' : 'ELSE',
@@ -101,6 +104,7 @@ reserved = all_reserved = {
    'rely' : 'RELY',
    'mixord' : 'MIXORD',
    'extract' : 'EXTRACT',
+   'process' : 'EXTRACT',
    'destructor' : 'DESTRUCTOR',
    'some' : 'SOME',
    'maximizing' : 'MAXIMIZING',
@@ -130,6 +134,8 @@ reserved = all_reserved = {
    'decreases' : 'DECREASES',
    'specification' : 'SPECIFICATION',
    'implementation' : 'IMPLEMENTATION',
+   'global' : 'GLOBAL',
+   'common' : 'COMMON',
    'ensure' : 'ENSURE',
    'require' : 'REQUIRE',
    'around' : 'AROUND',
@@ -148,6 +154,9 @@ reserved = all_reserved = {
    'tactic' : 'TACTIC',
     'unfold' : 'UNFOLD',
     'forget' : 'FORGET',
+    'debug' : 'DEBUG',
+    'for' : 'FOR',
+    'subclass' : 'SUBCLASS',
 }
 
 tokens += tuple(all_reserved.values())
@@ -182,6 +191,8 @@ t_DOTS = r'\.\.'
 t_DOTDOTDOT = r'\.\.\.'
 t_DOLLAR = r'\$'
 t_CARET = r'\^'
+t_LB  = r'\['
+t_RB  = r'\]'
 
 t_ignore  = ' \t\r'
 t_ignore_COMMENT = r'\#.*'
@@ -190,14 +201,9 @@ def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
 
-def t_SYMBOL(t):
-    r'[_a-z0-9][_a-zA-Z0-9]*(\[[ab-zA-Z_0-9.]*\])*|".*?"'
-    t.type = reserved.get(t.value,'SYMBOL')
-    return t
-
-def t_LABEL(t):
-    r'\[[_a-zA-Z0-9\]\[]+\]'
-    t.type = reserved.get(t.value,'LABEL')
+def t_PRESYMBOL(t):
+    r'[_a-z0-9][_a-zA-Z0-9]*|".*?"'
+    t.type = reserved.get(t.value,'PRESYMBOL')
     return t
 
 def t_VARIABLE(t):
@@ -259,8 +265,12 @@ class LexerVersion(object):
             for s in ['decreases','specification','implementation','require','ensure','around','parameter','apply','theorem','showgoals','spoil','explicit','thunk','isa','autoinstance','constructor','tactic','finite','unfold','forget']:
                 if s in reserved:
                     del reserved[s]
+        if self.version <= [1,7]:
+            for s in ['global','common','debug','field','for','process','subclass','template']:
+                if s in reserved:
+                    del reserved[s]
         else:
-            for s in ['requires','ensures','method']:
+            for s in ['requires','ensures']:
                 if s in reserved:
                     del reserved[s]
 

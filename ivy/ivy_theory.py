@@ -103,7 +103,9 @@ class Theory(object):
         self.name = name
     def __str__(self):
         return self.name
-
+    def is_finite(self):
+        return False
+    
 class IntegerTheory(Theory):
     num_params = 0
     @property
@@ -118,6 +120,8 @@ class BitVectorTheory(Theory):
     @property
     def schemata():
         return theories()['int']
+    def is_finite(self):
+        return True
     
 
 theory_classes = {
@@ -142,6 +146,8 @@ def parse_theory(name):
 
 def get_theory_schemata(name):
     if iu.version_le("1.6",iu.get_string_version()):
+        if isinstance(name,il.RangeSort):
+            return theories()['int']
         if name.startswith('bv[') or name == 'nat':
             return theories()['int']
         return theories().get(name,None)
@@ -164,5 +170,5 @@ def has_integer_interp(sort):
     name = sort.name
     if name in il.sig.interp:
         interp = il.sig.interp[name]
-        return interp in ['int','nat']
+        return interp in ['int','nat'] or isinstance(interp,il.RangeSort)
     return False

@@ -64,6 +64,7 @@ class Module(object):
         self.natives = [] # list of NativeDef
         self.native_definitions = [] # list of definitions whose rhs is NativeExpr
         self.initializers = [] # list of name,action pairs
+        self.initial_actions = [] # list of actions with formal parameters
         self.params = [] # list of symbol
         self.param_defaults = [] # list of string or None
         self.ghost_sorts = set() # set of sort names
@@ -158,7 +159,7 @@ class Module(object):
                         ax = ax.to_constraint()
                         if ldf.formula.args[0].args:
                             ax = il.ForAll(ldf.formula.args[0].args,ax)
-                            theory.append(ax) # TODO: make this a def?
+                        theory.append(ax) # TODO: make this a def?
                     else:
                         defs.append(ax)
         # extensionality axioms for structs
@@ -194,7 +195,7 @@ class Module(object):
             cnst = ldf.formula.to_constraint()
             if not all(isinstance(p,il.Variable) for p in ldf.formula.args[0].args):
                 non_epr[ldf.formula.defines()] = (ldf,cnst)
-        return ModuleTheoryContext(functools.partial(instantiate_non_epr,non_epr))
+        return ModuleTheoryContext(non_epr)
         
 
     def is_variant(self,lsort,rsort):
@@ -207,6 +208,18 @@ class Module(object):
         for idx,sort in enumerate(self.variants[lsort.name]):
             if sort == rsort:
                 return idx
+
+    # Gets an estimate of the cardinality of a sort, or None. This is
+    # used for unrolling loops over the sort.
+
+    def sort_card(self,sort):
+        if il.is_function_sort(sort):
+            return None
+        attr = iu.compose_names(sort.name,'cardinality')
+        if attr in self.attributes:
+            return int(self.attributes[attr].rep)
+        return sort_card(sort)
+
 
     # This makes a semi-shallow copy so we can side-effect 
 
@@ -345,21 +358,32 @@ def drop_label(labeled_fmla):
 
 class ModuleTheoryContext(object):
 
-    def __init__(self,instantiator):
-        self.instantiator = instantiator
+    def __init__(self,non_epr):
+        self.non_epr = non_epr
 
     def __enter__(self):
         self.old_instantiator = lu.instantiator
-        lu.instantiator = self.instantiator
+        lu.instantiator = self
         return self
 
     def __exit__(self,exc_type, exc_val, exc_tb):
         lu.instantiator = self.old_instantiator
         return False # don't block any exceptions
 
+    def __call__(self,clauses):
+        return instantiate_non_epr(self.non_epr,clauses)
+
+    def rename(self,subst):
+        new_non_epr = []
+        for (df,cnst) in self.non_epr:
+            dfns = df.defines()
+            if dfns in subst:
+                new_non_epr.append((lu.rename_ast(df,subst),lu.rename_ast(cnst,subst)))
+        self.non_epr.extend(new_non_epr)
+
 def relevant_definitions(symbols):
     dfn_map = dict((ldf.formula.defines(),ldf.formula.args[1]) for ldf in module.definitions)
-    rch = set(iu.reachable(symbols,lambda sym: lu.symbols_ast(dfn_map[sym]) if sym in dfn_map else []))
+    rch = set(iu.reachable(list(il.normalize_symbol(x) for x in symbols),lambda sym: lu.symbols_ast(dfn_map[sym]) if sym in dfn_map else []))
     return [ldf for ldf in module.definitions if ldf.formula.defines() in rch]
     
 def sort_dependencies(mod,sortname,with_variants=True):

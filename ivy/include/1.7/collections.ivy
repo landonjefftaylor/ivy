@@ -43,6 +43,9 @@ module array(domain,range) = {
     # add one element to the array
     action append(a:t,v:range) returns (a:t)
 
+    # test equality of two arrays
+    action eq(x:t,y:t) returns (res:bool)
+
     # extend an array by another arrary (i.e., concatenate the arrays)
     action extend(a:t,b:t) returns (a:t)
 
@@ -122,6 +125,10 @@ module array(domain,range) = {
 	    assert value(a,end(old a)) = v
 	}
 
+        after eq {
+            ensure res <-> (end(x) = end(y) & forall I. 0 <= I & I < end(x) -> value(x,I) = value(y,I))
+        }
+
         theorem extensionality = {
             property end(X) = end(Y) & forall I. 0 <= I & I < end(X) -> value(X,I) = value(Y,I)
             property X:t = Y
@@ -166,6 +173,25 @@ module vector(range) = {
 #
 
 autoinstance vector[range] : vector(range)
+
+
+################################################################################
+#
+# A bounded vector of size max can hold up to max-1 elements. 
+#
+
+module vector_bounded(range,max) = {
+    
+    type domain = {0..max}
+    
+    instantiate array(domain,range)
+
+    specification {
+        before append(a:t,v:range) {
+            assume a.end < max;
+        }
+    }
+}
 
 
 ################################################################################
@@ -1263,6 +1289,8 @@ module ordered_map_impl(key,value) = {
     instantiate map_wrapper(key,value)
 }
 
+autoinstance ordered_map[key][value] : ordered_map(key,value)
+
 ################################################################################
 #
 # Key/value arrays
@@ -1450,9 +1478,14 @@ module segment(domain,range,arr) = {
             {
                 seg.elems := seg.elems.append(data.value(idx));
                 idx := idx.next;
-            };
+            }
         }
     }
     
     isolate iso = this with domain.impl,arr
 }
+
+
+
+    
+    
