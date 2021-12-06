@@ -22,8 +22,6 @@ import itertools
 import sys
 import os
 
-import time
-
 logfile = None
 
 def get_truth(digits,idx,syms):
@@ -427,8 +425,7 @@ class Encoder(object):
         res = [self.sub.false() for _ in x]
         for i in range(0,len(x)):
             res = res[1:] + [self.sub.false()]
-            # res = self.encode_ite(sort,x[i],self.encode_plus(sort,res,y),res) #the original problem
-            res = self.sub.ite(sort,x[i],self.encode_plus(sort,res,y),res) #the original problem
+            res = self.encode_ite(sort,x[i],self.encode_plus(sort,res,y),res)
         return res
 
     def encode_lt(self,sort,x,y,cy=None):
@@ -446,8 +443,8 @@ class Encoder(object):
         res = []
         for i in range(0,len(x)):
             thing = thing[1:] + [x[i]]
-            le = encode_le(y,thing) #problem?
-            thing = self.encode_ite(sort,ls,self.encode_minus(sort,thing,y),thing) #problem
+            le = encode_le(y,thing)
+            thing = self.encode_ite(sort,ls,self.encode_minus(sort,thing,y),thing)
             res.append(le)
         return res
 
@@ -1592,13 +1589,9 @@ class ABCModelChecker(ModelChecker):
     def cmd(self,aigfilename,outfilename):
         abc_path = os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)),'bin'),'abc')
         print "abc_path: {}".format(abc_path)
-        # return [abc_path,'-c','read_aiger {}; pdr; write_aiger_cex  {}'.format(aigfilename,outfilename)]
-        pdr_log_name = aigfilename.replace(".aig","_pdr.log")
-        # return [abc_path,'-c','read_aiger {}; pdr -qvwt -L {}; write_aiger_cex  {}'.format(aigfilename,pdr_log_name,outfilename)] #more verbose
-        return [abc_path,'-c','read_aiger {}; pdr -qt -L {}; write_aiger_cex  {}'.format(aigfilename,pdr_log_name,outfilename)] #regular
+        return [abc_path,'-c','read_aiger {}; pdr -qt -L {}; write_aiger_cex  {}'.format(aigfilename,outfilename)]
     def scrape(self,alltext):
         return 'Property proved' in alltext
-
 
 def check_isolate():
     
@@ -1607,6 +1600,7 @@ def check_isolate():
     print
 
     print "This version has been modified by Landon Taylor. landon.jeffrey.taylor@usu.edu"
+    print "Version code 12062021_1417P | Finds shortest path using abstraction."
     print "The ABCModelChecker function is using 'pdr -qt -L pdr_log.txt'. For more info,"
     print "install abc, and on the command line use 'abc' > 'pdr --help'"
 
@@ -1614,14 +1608,9 @@ def check_isolate():
     print 80*'*'
     print
 
-    rand_id = str(int(time.time()))
-
     global logfile,logfile_name
     if logfile is None:
-        # logfile_name = 'ivy_mc.log'
-        if not os.path.exists('logfiles'):
-            os.makedirs('logfiles')
-        logfile_name = 'logfiles/ivy_mc_' + rand_id + '.log'
+        logfile_name = 'ivy_mc.log'
         logfile = open(logfile_name,'w')
 
     mod = im.module
@@ -1634,25 +1623,13 @@ def check_isolate():
     # convert to aiger
 
     aiger,decoder,annot,cnsts,action,stvarset = to_aiger(mod,ext_act)
-    # logfile.write(str(80*"="))
-    # logfile.write("\nAIGER:\n")
-    # logfile.write(str(aiger))
-    # logfile.write("\n" + str(80*"="))
-    # logfile.write("\n\n")
-
-#     # output aiger to temp file
-
-#     with tempfile.NamedTemporaryFile(suffix='.aag',delete=False) as f:
-#         name = f.name
-# #        print 'file name: {}'.format(name)
-#         f.write(str(aiger))
+#    print aiger
 
     # output aiger to temp file
-    if not os.path.exists('aigerfiles'):
-        os.makedirs('aigerfiles')
-    with open("aigerfiles/" + rand_id + ".aag", 'w') as f:
+
+    with tempfile.NamedTemporaryFile(suffix='.aag',delete=False) as f:
         name = f.name
-        print 'file name: {}'.format(name)
+#        print 'file name: {}'.format(name)
         f.write(str(aiger))
     
     # convert aag to aig format
@@ -1672,7 +1649,7 @@ def check_isolate():
     outfilename = name.replace('.aag','.out')
     mc = ABCModelChecker() # TODO: make a command-line option
     cmd = mc.cmd(aigfilename,outfilename)
-    print "using cmd " + str(cmd)
+#    print cmd
     try:
         p = subprocess.Popen(cmd,stdout=subprocess.PIPE)
     except:
