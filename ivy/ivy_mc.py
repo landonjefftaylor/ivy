@@ -1674,7 +1674,7 @@ class ABCModelChecker(ModelChecker):
 
 
 
-def check_isolate():
+def check_isolate(method="mc"):
     
     print
     print 80*'*'
